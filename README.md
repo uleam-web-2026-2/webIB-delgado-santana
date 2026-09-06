@@ -45,3 +45,41 @@ If you have state that's important to retain within a component, consider creati
 import { writable } from 'svelte/store'
 export default writable(0)
 ```
+
+## Integrantes
+
+- Delgado Santana Jonathan Estifen
+- Moreira Ordoñez Colon David
+
+## Requisitos
+
+Antes de ejecutar el proyecto, verificar que Node.js y npm estén instalados:
+
+bash
+node -v
+npm -v
+
+
+## Cómo ejecutar el proyecto
+
+1. Instalar las dependencias:
+
+bash
+npm install
+
+
+2. Levantar el proyecto:
+
+bash
+npm run dev
+
+
+3. Abrir en el navegador la URL que muestre Vite, normalmente:
+
+http://localhost:5173
+
+## Supabase
+
+URL:
+
+https://quqijtkhcotkffxddpyk.supabase.co
