@@ -12,7 +12,7 @@
     <img src={viteLogo} class="vite" alt="Vite logo" />
   </div>
   <div>
-    <h1>David Colon + Jonathan Estifen</h1>
+    <h1>David Colon + Jonathan Estifen </h1>
     <p>Edit <code>src/App.svelte</code> and save to test <code>HMR</code></p>
   </div>
   <Counter />
