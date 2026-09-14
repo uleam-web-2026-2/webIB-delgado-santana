@@ -62,11 +62,11 @@ npm -v
 
 ## Cómo ejecutar el proyecto
 
-Clonar el repositorio con : git clone https://github.com/uleam-web-2026-2/webIB-delgado-santana.git
+1. Clonar el repositorio con : git clone https://github.com/uleam-web-2026-2/webIB-delgado-santana.git
 
 Entrar a la carpeta: cd webIB-delgado-santana e Instalar las dependencias:
 
-Instalar las dependencias:
+2. Instalar las dependencias:
 
 bash
 npm install

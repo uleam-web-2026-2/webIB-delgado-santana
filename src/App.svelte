@@ -1,14 +1,53 @@
-Mesa de Ayuda
-Tickets Clientes Reportes
-Nuevo ticket
+HTML
+<header>
+  <p>Nombre de la aplicación : Mesa de Ayuda</p>
+  <nav aria-label="Navegación principal">
+    <ul>
+      <li><a href="/tickets">Tickets</a></li>
+      <li><a href="/clientes">Clientes</a></li>
+      <li><a href="/reportes">Reportes</a></li>
+    </ul>
+  </nav>
+  <a href="/tickets/nuevo">Nuevo ticket</a>
+</header>
 
-Bandeja de tickets
-Agente: Mariela Zambrano 6 tickets asignados
+<main id="contenido-principal">
+  <h1>Bandeja de tickets</h1>
+  <p>Agente: Mariela Zambrano <span>6 tickets asignados</span></p>
 
-Estado: Todos Abierto En progreso En espera Resuelto Cerrado
-Prioridad: Todas Alta Media Baja
-Buscar: Asunto o cliente
-Aplicar filtros
+  <section aria-labelledby="titulo-filtros">
+    <h2 id="titulo-filtros">Filtros</h2>
+    <form>
+      <p>
+        <label for="filtro-estado">Estado:</label>
+        <select id="filtro-estado">
+          <option value="todos">Todos</option>
+          <option value="abierto">Abierto</option>
+          <option value="en-progreso">En progreso</option>
+          <option value="en-espera">En espera</option>
+          <option value="resuelto">Resuelto</option>
+          <option value="cerrado">Cerrado</option>
+        </select>
+      </p>
+
+      <p>
+        <label for="filtro-prioridad">Prioridad:</label>
+        <select id="filtro-prioridad">
+          <option value="todas">Todas</option>
+          <option value="alta">Alta</option>
+          <option value="media">Media</option>
+          <option value="baja">Baja</option>
+        </select>
+      </p>
+
+      <p>
+        <label for="filtro-buscar">Buscar:</label>
+        <input type="text" id="filtro-buscar" placeholder="Asunto o cliente" />
+      </p>
+
+      <button type="button">Aplicar filtros</button>
+    </form>
+  </section>
 
 <section aria-labelledby="titulo-resumen">
     <h2 id="titulo-resumen">Resumen</h2>
