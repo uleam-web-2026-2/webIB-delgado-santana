@@ -62,19 +62,22 @@ npm -v
 
 ## Cómo ejecutar el proyecto
 
-1. Instalar las dependencias:
+Clonar el repositorio con : git clone https://github.com/uleam-web-2026-2/webIB-delgado-santana.git
+
+Entrar a la carpeta: cd webIB-delgado-santana e Instalar las dependencias:
+
+Instalar las dependencias:
 
 bash
 npm install
 
 
-2. Levantar el proyecto:
+3. Levantar el proyecto:
 
 bash
 npm run dev
 
-
-3. Abrir en el navegador la URL que muestre Vite, normalmente:
+4. Abrir en el navegador la URL que muestre Vite, normalmente:
 
 http://localhost:5173
 
