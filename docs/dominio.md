@@ -1,27 +1,20 @@
 # Nuestro negocio
 
-Negocio: Sistema de adopción de perros y gatos.
-Video de Starter Story:
-Gestión local de refugios de animales y postulaciones de adopción en Manta.
+**Producto:** Patafiel - Sistema de Gestión de Cuidado y Bienestar Animal
 
-## Las dos entidades
-1. Mascotas
-2. Solicitudes de adopción
+## Entidades principales
+1. **Mascota:** El perro o gato que requiere el servicio de cuidado.
+2. **Solicitud de cuidado:** El pedido que realiza el dueño para contratar a un cuidador verificado.
 
-Mascotas se relaciona con la primera porque una mascota puede recibir múltiples solicitudes de adopción de diferentes personas a lo largo del tiempo hasta ser adoptada.
+## Entidad que cambia de estado
+- **Entidad:** Solicitud de cuidado
+- **Flujo de estados:** Pendiente -> Aceptada -> En progreso -> Completada
+- **Quién cambia el estado:** El cuidador acepta la solicitud y actualiza el avance del trabajo.
 
-## La entidad que cambia de estado
-Entidad: Solicitudes de adopción
-Estados: Recibida -> En evaluación -> Aprobada
-Quien provoca cada cambio: El administrador del sistema tras revisar los datos del postulante.
+## Roles del sistema
+- **Dueño de mascota (Cliente):** Crea las solicitudes de cuidado y consulta su estado. No puede modificar estados ni aprobar solicitudes.
+- **Cuidador (Proveedor):** Revisa las solicitudes que le llegan a la bandeja y actualiza el estado de cada servicio.
 
-## Los dos roles
-- Solicitante: puede enviar una postulación, no puede evaluar solicitudes de otros.
-- Administrador: puede evaluar solicitudes y cambiar su estado, no puede postularse como adoptante con su cuenta de gestión.
-
-## La pantalla de hoy
-El rol que la usa: Administrador
-La pregunta que responde: ¿Qué solicitudes de adopción tengo pendientes por revisar y en qué estado se encuentran?
-
-## Pendientes
-- Ninguno.
+## Pantalla actual
+- **Rol principal:** Cuidador
+- **Pregunta clave:** ¿Qué solicitudes de cuidado he recibido y en qué estado está cada una?

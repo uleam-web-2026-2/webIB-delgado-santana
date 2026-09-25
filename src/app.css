@@ -20,3 +20,24 @@ th {
 .tabla-scroll {
   overflow-x: auto;
 }
+
+label {
+  display: block;
+  margin-top: 1rem;
+}
+
+input, select, textarea {
+  display: block;
+  width: 100%;
+  padding: .5rem;
+}
+
+button {
+  padding: .6rem 1.2rem;
+}
+
+.mensaje-error {
+  color: #b3261e;
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+}
