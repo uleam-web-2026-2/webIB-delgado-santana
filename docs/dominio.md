@@ -13,7 +13,7 @@ Mascotas se relaciona con la primera porque una mascota puede recibir múltiples
 ## La entidad que cambia de estado
 Entidad: Solicitudes de adopción
 Estados: Recibida -> En evaluación -> Aprobada
-Quien provoca cada cambio: El agente o administrador del sistema tras revisar los datos del postulante.
+Quien provoca cada cambio: El administrador del sistema tras revisar los datos del postulante.
 
 ## Los dos roles
 - Solicitante: puede enviar una postulación, no puede evaluar solicitudes de otros.
