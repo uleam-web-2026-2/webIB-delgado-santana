@@ -253,8 +253,6 @@ En el caso del cuidador, **“solo las suyas”** significa únicamente las soli
 - `Listado de solicitudes recibidas`: `src/App.svelte`.  
 - `Formulario de nueva solicitud`: `src/Formulario.svelte`.  
 
-> Antes de entregar, verificar que esos nombres de archivo coincidan exactamente con el repositorio y que la captura usada en la diapositiva 4 muestre el estado escrito como palabra.
 
 ## 8. Declaración de IA
-
-**IA:** Gemini se utilizó inicialmente para apoyar la estructuración de la ficha. ChatGPT se utilizó posteriormente para revisar la coherencia entre el negocio, el modelo de datos, las cardinalidades, la máquina de estados, los roles y el mapa de vistas, además de mejorar la redacción. Las decisiones finales del dominio corresponden a Patafiel y fueron revisadas por los integrantes.
+Gemini se utilizó inicialmente para apoyar la estructuración de la ficha. ChatGPT se utilizó posteriormente para revisar la coherencia entre el negocio, el modelo de datos, las cardinalidades, la máquina de estados, los roles y el mapa de vistas. Las redacciones finales se verificaron personalmente.
