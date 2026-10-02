@@ -1,6 +1,6 @@
 # Hito 1 · Ficha del negocio: Patafiel
 
-**Pareja:** Jonathan Delgado · Anthony Santana  
+**Pareja:** Jonathan Delgado · Colon Moreira  
 **Paralelo:** Aplicaciones Web I B  
 **Negocio en una línea:** Patafiel es una plataforma web ecuatoriana para gestionar la contratación de cuidadores verificados de perros, registrar el pago del servicio y dar seguimiento a cada solicitud de cuidado hasta la entrega de la mascota.
 
