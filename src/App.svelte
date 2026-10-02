@@ -15,7 +15,7 @@
 
   <div class="tabla-scroll">
     <table>
-      <caption>Registro de solicitudes de servicio de cuidado para perros y gatos</caption>
+      <caption>Registro de solicitudes de servicio de cuidado para perros</caption>
       <thead>
         <tr>
           <th scope="col">Mascota</th>
@@ -27,21 +27,21 @@
       </thead>
       <tbody>
         <tr>
-          <td>Luna (Gato)</td>
+          <td>Luna (Hembra)</td>
           <td>Carlos Mendoza</td>
           <td>16/Sep/2026</td>
           <td>Pendiente</td>
           <td><a href="#evaluar">Evaluar</a></td>
         </tr>
         <tr>
-          <td>Max (Perro)</td>
+          <td>Max (Macho)</td>
           <td>María Arcentales</td>
           <td>15/Sep/2026</td>
           <td>Aceptada</td>
           <td><a href="#evaluar">Evaluar</a></td>
         </tr>
         <tr>
-          <td>Rocky (Perro)</td>
+          <td>Rocky (Macho)</td>
           <td>Juan Delgado</td>
           <td>12/Sep/2026</td>
           <td>En progreso</td>

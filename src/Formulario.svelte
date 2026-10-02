@@ -13,11 +13,9 @@
     >
     <p id="nombre_mascota-error" class="mensaje-error">Error: Ingrese el nombre de su mascota.</p>
 
-    <label for="especie">Especie de la mascota</label>
-    <select id="especie" name="especie">
-      <option value="perro">Perro</option>
-      <option value="gato">Gato</option>
-    </select>
+    <label for="raza">Raza de la mascota</label>
+    <input type="text" id="raza" name="raza" required aria-invalid="true" aria-describedby="raza-error">
+    <p id="raza-error" class="mensaje-error">Error: Ingrese la raza de su perro.</p>
 
     <label for="dias_cuidado">Número de días de cuidado</label>
     <input 
