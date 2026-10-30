@@ -52,7 +52,7 @@ Las vistas marcadas como **Plan** corresponden a funcionalidades del cuidador qu
 
 **Correo de prueba:** `clientepatafiel@gmail.com`
 
-**Contraseña de prueba:** `[COMPLETAR CON UNA CONTRASEÑA EXCLUSIVA DE DEMOSTRACIÓN]`
+**Contraseña de prueba:** `anthox12`
 
 **Rol:** Cliente.
 
