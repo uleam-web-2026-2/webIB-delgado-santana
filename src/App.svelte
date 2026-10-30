@@ -251,7 +251,7 @@
     <p role="alert" class="mensaje-error">{mensaje}</p>
   {/if}
 
-  <Formulario />
+  <Formulario {sesionIniciada} alCrear={cargarSolicitudes} />
 </main>
 
 <footer>
