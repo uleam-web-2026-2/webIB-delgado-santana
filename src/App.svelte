@@ -44,84 +44,184 @@
     cancelada: 'Cancelada'
   };
 
-  // Comprobar si existe una sesión al abrir Patafiel.
+  // FASE 2: Supabase Auth conserva la sesión en el navegador.
+  // Al abrir Patafiel comprobamos que la sesión sigue siendo válida.
   onMount(() => {
     void comprobarSesion();
   });
 
-  async function comprobarSesion() {
-    const { data, error } = await supabase.auth.getSession();
-
-    if (error) {
-      mensaje = 'Error al comprobar sesión: ' + error.message;
-      return;
-    }
-
-    if (data.session) {
-      correo = data.session.user.email ?? correo;
-      sesionIniciada = true;
-      await cargarSolicitudes();
-    }
-  }
-
-  // Iniciar sesión usando Supabase Authentication.
-  async function iniciarSesion(event: SubmitEvent) {
-    event.preventDefault();
-    mensaje = '';
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: correo.trim(),
-      password: contrasena
-    });
-
-    if (error) {
-      mensaje = 'No se pudo iniciar sesión: ' + error.message;
-      return;
-    }
-
-    correo = data.user.email ?? correo;
-    sesionIniciada = true;
-    contrasena = '';
-
-    await cargarSolicitudes();
-  }
-
-  // Cerrar sesión.
-  async function cerrarSesion() {
-    const { error } = await supabase.auth.signOut();
-
-    if (error) {
-      mensaje = error.message;
-      return;
-    }
-
+  function limpiarVistaSinSesion(): void {
     sesionIniciada = false;
     solicitudes = [];
     detalle = null;
-    mensaje = '';
+    guardandoEstado = null;
   }
 
-  // Consultar las solicitudes reales en PostgreSQL.
-  async function cargarSolicitudes() {
+  function esErrorDeAutenticacion(status: number | undefined): boolean {
+    return status === 400 || status === 401 || status === 403;
+  }
+
+  // Elimina la sesión local si el token ya no es válido.
+  async function terminarSesionInvalida(aviso: string): Promise<void> {
+    try {
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
+      if (error) console.warn('No se pudo revocar la sesión en Supabase:', error);
+    } catch (error) {
+      console.error('Error al limpiar la sesión:', error);
+    }
+
+    limpiarVistaSinSesion();
+    mensaje = aviso;
+  }
+
+  async function comprobarSesion(): Promise<void> {
+    try {
+      // getSession recupera la sesión guardada y renueva el token si hace falta.
+      const { data, error } = await supabase.auth.getSession();
+
+      if (error) {
+        if (esErrorDeAutenticacion(error.status)) {
+          await terminarSesionInvalida(
+            'Tu sesión venció o dejó de ser válida. Inicia sesión nuevamente.'
+          );
+        } else {
+          mensaje = 'No se pudo recuperar la sesión. Revisa tu conexión.';
+        }
+        return;
+      }
+
+      if (!data.session) {
+        limpiarVistaSinSesion();
+        return;
+      }
+
+      // getUser verifica la identidad contra el servidor de Supabase.
+      const { data: datosUsuario, error: errorUsuario } =
+        await supabase.auth.getUser();
+
+      if (errorUsuario) {
+        if (esErrorDeAutenticacion(errorUsuario.status)) {
+          await terminarSesionInvalida(
+            'Tu sesión ya no es válida. Inicia sesión nuevamente.'
+          );
+        } else {
+          mensaje = 'No se pudo validar la sesión. Revisa tu conexión.';
+        }
+        return;
+      }
+
+      if (!datosUsuario.user) {
+        await terminarSesionInvalida('La sesión no es válida. Inicia sesión nuevamente.');
+        return;
+      }
+
+      correo = datosUsuario.user.email ?? correo;
+      sesionIniciada = true;
+      await cargarSolicitudes();
+
+    } catch (error) {
+      console.error('Error comprobando la sesión:', error);
+      mensaje = 'No se pudo comprobar la sesión. Intenta recargar la página.';
+    }
+  }
+
+  // Restauradas: estaban referenciadas en el HTML, pero no en el código pegado.
+  async function iniciarSesion(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    mensaje = '';
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: correo.trim(),
+        password: contrasena
+      });
+
+      if (error || !data.session) {
+        mensaje = 'No se pudo iniciar sesión: ' + (error?.message ?? 'Sesión no recibida.');
+        return;
+      }
+
+      correo = data.user.email ?? correo;
+      sesionIniciada = true;
+      contrasena = '';
+      await cargarSolicitudes();
+
+    } catch (error) {
+      console.error('Error al iniciar sesión:', error);
+      mensaje = 'No hubo respuesta al iniciar sesión. Revisa tu conexión.';
+    }
+  }
+
+  async function cerrarSesion(): Promise<void> {
+    try {
+      // Solo cierra esta sesión; no todas las sesiones del usuario.
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
+      limpiarVistaSinSesion();
+      contrasena = '';
+      mensaje = error
+        ? 'Se cerró la sesión local, pero no se confirmó la revocación remota.'
+        : '';
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+      mensaje = 'No se pudo cerrar la sesión. Inténtalo nuevamente.';
+    }
+  }
+
+  // FASE 2: si Supabase rechaza el token al consultar, no romper el listado.
+  async function cargarSolicitudes(): Promise<void> {
     cargando = true;
     mensaje = '';
 
-    const { data, error } = await supabase
-      .from('solicitudes_cuidado')
-      .select(`
-        *,
-        mascotas (nombre, raza)
-      `)
-      .order('id', { ascending: false });
+    try {
+      const { data, error, status } = await supabase
+        .from('solicitudes_cuidado')
+        .select(`
+          *,
+          mascotas (nombre, raza)
+        `)
+        .order('id', { ascending: false });
 
-    cargando = false;
+      if (error) {
+        console.error('Error cargando solicitudes:', error);
 
-    if (error) {
-      mensaje = 'Error al cargar solicitudes: ' + error.message;
-      return;
+        // 42501 también puede devolver HTTP 401: es falta de permisos,
+        // NO necesariamente un token vencido. Evitar cerrar sesión por eso.
+        if (status === 401 && error.code !== '42501') {
+          const { data: usuario, error: errorUsuario } =
+            await supabase.auth.getUser();
+
+          if (errorUsuario && esErrorDeAutenticacion(errorUsuario.status)) {
+            await terminarSesionInvalida(
+              'Tu sesión venció. Inicia sesión para volver a cargar las solicitudes.'
+            );
+            return;
+          }
+
+          if (!errorUsuario && !usuario.user) {
+            await terminarSesionInvalida(
+              'Tu sesión ya no es válida. Inicia sesión nuevamente.'
+            );
+            return;
+          }
+
+          if (errorUsuario) {
+            mensaje = 'No se pudo validar la sesión. Revisa tu conexión.';
+            return;
+          }
+        }
+
+        mensaje = 'Error al cargar solicitudes: ' + error.message;
+        return;
+      }
+
+      solicitudes = (data ?? []) as SolicitudListado[];
+
+    } catch (error) {
+      console.error('Error de conexión cargando solicitudes:', error);
+      mensaje = 'No se pudieron cargar las solicitudes. Revisa tu conexión.';
+    } finally {
+      cargando = false;
     }
-
-    solicitudes = (data ?? []) as SolicitudListado[];
   }
 
   // Consultar una solicitud y sus comprobantes.
