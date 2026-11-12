@@ -233,3 +233,37 @@ WITH CHECK (
         WHERE verificado = TRUE
     )
 );
+
+
+-- Semana 10 - Permisos de actualización
+GRANT UPDATE (estado)
+ON public.solicitudes_cuidado
+TO authenticated;
+
+DROP POLICY IF EXISTS "Cambiar estado solicitud propia"
+ON public.solicitudes_cuidado;
+
+CREATE POLICY "Cambiar estado solicitud propia"
+ON public.solicitudes_cuidado
+FOR UPDATE
+TO authenticated
+USING (
+    estado = 'pendiente_pago'
+    AND EXISTS (
+        SELECT 1
+        FROM public.usuarios u
+        WHERE u.id = cliente_id
+          AND u.auth_id = (SELECT auth.uid())
+          AND u.rol = 'cliente'
+    )
+)
+WITH CHECK (
+    estado IN ('pago_por_verificar', 'cancelada')
+    AND EXISTS (
+        SELECT 1
+        FROM public.usuarios u
+        WHERE u.id = cliente_id
+          AND u.auth_id = (SELECT auth.uid())
+          AND u.rol = 'cliente'
+    )
+);

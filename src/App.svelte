@@ -1,7 +1,9 @@
 
+
 <script lang="ts">
   import { onMount } from 'svelte';
   import { supabase } from './lib/supabase';
+  import { cambiarEstadoSolicitud } from './solicitudes';
   import Formulario from './Formulario.svelte';
 
   import type {
@@ -27,6 +29,9 @@
   let cargando = $state(false);
   let mensaje = $state('');
 
+  // Identifica qué solicitud está siendo actualizada.
+  let guardandoEstado = $state<number | null>(null);
+
   let solicitudes = $state<SolicitudListado[]>([]);
   let detalle = $state<DetalleSolicitud | null>(null);
 
@@ -45,9 +50,15 @@
   });
 
   async function comprobarSesion() {
-    const { data } = await supabase.auth.getSession();
+    const { data, error } = await supabase.auth.getSession();
+
+    if (error) {
+      mensaje = 'Error al comprobar sesión: ' + error.message;
+      return;
+    }
 
     if (data.session) {
+      correo = data.session.user.email ?? correo;
       sesionIniciada = true;
       await cargarSolicitudes();
     }
@@ -58,7 +69,7 @@
     event.preventDefault();
     mensaje = '';
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: correo.trim(),
       password: contrasena
     });
@@ -68,8 +79,10 @@
       return;
     }
 
+    correo = data.user.email ?? correo;
     sesionIniciada = true;
     contrasena = '';
+
     await cargarSolicitudes();
   }
 
@@ -139,6 +152,104 @@
 
     detalle = data as DetalleSolicitud;
   }
+
+  // FASE 1 - Cambiar estado mediante Supabase.
+  // Primero se actualiza la base de datos y luego la pantalla.
+  async function cancelarSolicitud(id: number) {
+
+    // Evita solicitudes simultáneas.
+    if (guardandoEstado !== null) {
+      return;
+    }
+
+    mensaje = '';
+
+    // Buscar la solicitud en el listado actual.
+    const solicitud = solicitudes.find(s => s.id === id);
+
+    if (!solicitud) {
+      mensaje = 'No se encontró la solicitud seleccionada.';
+      return;
+    }
+
+    // Verificar que el cambio de estado sea permitido.
+    if (solicitud.estado !== 'pendiente_pago') {
+      mensaje =
+        'Solo se pueden cancelar solicitudes pendientes de pago.';
+      return;
+    }
+
+    // Comprobar que existe una sesión autenticada.
+    const { data, error } = await supabase.auth.getSession();
+
+    if (error || !data.session) {
+      mensaje =
+        'Debe iniciar sesión para cambiar el estado de la solicitud.';
+      return;
+    }
+
+    guardandoEstado = id;
+    mensaje = 'Guardando cambio en Supabase...';
+
+    try {
+      // Enviar PATCH a Supabase.
+      const resultado = await cambiarEstadoSolicitud(
+        id,
+        'cancelada',
+        data.session.access_token
+      );
+
+      // Comprobar el código HTTP.
+      if (resultado.codigo !== 200) {
+        mensaje =
+          'Error: Supabase no actualizó la solicitud. Código HTTP: ' +
+          resultado.codigo;
+        return;
+      }
+
+      // Un 200 no garantiza que se haya modificado una fila.
+      if (resultado.filas.length !== 1) {
+        mensaje =
+          'Error: la solicitud no cambió. ' +
+          'No se actualizó ningún registro. ' +
+          'Revise sus permisos.';
+        return;
+      }
+
+      const estadoConfirmado = resultado.filas[0].estado;
+
+      // Actualizar la copia local solo después
+      // de recibir la confirmación de Supabase.
+      solicitudes = solicitudes.map(s =>
+        s.id === id
+          ? { ...s, estado: estadoConfirmado }
+          : s
+      );
+
+      // Actualizar el detalle si está abierto.
+      if (detalle?.id === id) {
+        detalle = {
+          ...detalle,
+          estado: estadoConfirmado
+        };
+      }
+
+      mensaje =
+        'La solicitud #' + id +
+        ' cambió correctamente a ' +
+        nombresEstado[estadoConfirmado] + '.';
+
+    } catch (error) {
+      console.error(error);
+
+      mensaje =
+        'Error de conexión con Supabase. ' +
+        'La solicitud no se actualizó en pantalla.';
+
+    } finally {
+      guardandoEstado = null;
+    }
+  }
 </script>
 
 <header>
@@ -169,17 +280,26 @@
           required
         />
 
-        <button type="submit">Iniciar sesión</button>
+        <button type="submit">
+          Iniciar sesión
+        </button>
       </form>
     </section>
+
   {:else}
     <p>Sesión iniciada como {correo}</p>
 
-    <button onclick={cerrarSesion}>Cerrar sesión</button>
-    <button onclick={cargarSolicitudes}>Actualizar solicitudes</button>
+    <button onclick={cerrarSesion}>
+      Cerrar sesión
+    </button>
+
+    <button onclick={cargarSolicitudes}>
+      Actualizar solicitudes
+    </button>
 
     {#if cargando}
       <p>Cargando solicitudes...</p>
+
     {:else}
       <div class="tabla-scroll">
         <table>
@@ -200,19 +320,48 @@
             {#each solicitudes as solicitud (solicitud.id)}
               <tr>
                 <td>{solicitud.id}</td>
-                <td>{solicitud.mascotas?.nombre ?? 'Sin mascota'}</td>
-                <td>{solicitud.fecha_inicio}</td>
-                <td>${solicitud.total_pagar.toFixed(2)}</td>
-                <td>{nombresEstado[solicitud.estado]}</td>
+
                 <td>
-                  <button onclick={() => abrirDetalle(solicitud.id)}>
+                  {solicitud.mascotas?.nombre ?? 'Sin mascota'}
+                </td>
+
+                <td>{solicitud.fecha_inicio}</td>
+
+                <td>
+                  ${solicitud.total_pagar.toFixed(2)}
+                </td>
+
+                <td>
+                  {nombresEstado[solicitud.estado]}
+                </td>
+
+                <td>
+                  <button
+                    type="button"
+                    onclick={() => abrirDetalle(solicitud.id)}
+                  >
                     Ver detalle
                   </button>
+
+                  {#if solicitud.estado === 'pendiente_pago'}
+                    <button
+                      type="button"
+                      disabled={guardandoEstado !== null}
+                      onclick={() => cancelarSolicitud(solicitud.id)}
+                    >
+                      {guardandoEstado === solicitud.id
+                        ? 'Guardando...'
+                        : 'Cancelar solicitud'}
+                    </button>
+                  {/if}
                 </td>
               </tr>
+
             {:else}
               <tr>
-                <td colspan="6">No hay solicitudes disponibles.</td>
+                <td colspan="6">
+                  No hay solicitudes disponibles.
+                </td>
               </tr>
             {/each}
           </tbody>
@@ -224,12 +373,35 @@
       <section>
         <h2>Detalle de solicitud #{detalle.id}</h2>
 
-        <p><strong>Mascota:</strong> {detalle.mascotas?.nombre}</p>
-        <p><strong>Raza:</strong> {detalle.mascotas?.raza}</p>
-        <p><strong>Inicio:</strong> {detalle.fecha_inicio}</p>
-        <p><strong>Fin:</strong> {detalle.fecha_fin}</p>
-        <p><strong>Total:</strong> ${detalle.total_pagar.toFixed(2)}</p>
-        <p><strong>Estado:</strong> {nombresEstado[detalle.estado]}</p>
+        <p>
+          <strong>Mascota:</strong>
+          {detalle.mascotas?.nombre}
+        </p>
+
+        <p>
+          <strong>Raza:</strong>
+          {detalle.mascotas?.raza}
+        </p>
+
+        <p>
+          <strong>Inicio:</strong>
+          {detalle.fecha_inicio}
+        </p>
+
+        <p>
+          <strong>Fin:</strong>
+          {detalle.fecha_fin}
+        </p>
+
+        <p>
+          <strong>Total:</strong>
+          ${detalle.total_pagar.toFixed(2)}
+        </p>
+
+        <p>
+          <strong>Estado:</strong>
+          {nombresEstado[detalle.estado]}
+        </p>
 
         <h3>Comprobantes de pago</h3>
 
@@ -242,16 +414,23 @@
           <p>Esta solicitud todavía no tiene comprobantes.</p>
         {/each}
 
-        <button onclick={() => detalle = null}>Cerrar detalle</button>
+        <button onclick={() => detalle = null}>
+          Cerrar detalle
+        </button>
       </section>
     {/if}
   {/if}
 
   {#if mensaje}
-    <p role="alert" class="mensaje-error">{mensaje}</p>
+    <p role="status" class="mensaje-error">
+      {mensaje}
+    </p>
   {/if}
 
-  <Formulario {sesionIniciada} alCrear={cargarSolicitudes} />
+  <Formulario
+    {sesionIniciada}
+    alCrear={cargarSolicitudes}
+  />
 </main>
 
 <footer>
