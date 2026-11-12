@@ -1,5 +1,6 @@
 
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { supabase } from './lib/supabase';
   import type { Mascota, Cuidador } from './tipos';
 
@@ -35,6 +36,69 @@
   let guardando = $state(false);
   let cargandoOpciones = $state(false);
 
+  // FASE 4: borrador por pestaña, no almacenado en Supabase.
+  // No guardamos clienteId: con sesión se obtiene del perfil real.
+  // Tampoco almacenamos credenciales ni tokens.
+  const CLAVE_BORRADOR = 'patafiel.borradorSolicitud';
+  const CAMPOS_BORRADOR = [
+    'mascotaId',
+    'cuidadorId',
+    'fechaInicio',
+    'fechaFin',
+    'totalSinSesion'
+  ] as const;
+
+  type Borrador = Record<(typeof CAMPOS_BORRADOR)[number], string>;
+
+  function guardarBorrador(evento: Event): void {
+    const formulario = evento.currentTarget;
+    if (!(formulario instanceof HTMLFormElement)) return;
+
+    const datos = new FormData(formulario);
+    const borrador = {} as Borrador;
+    for (const campo of CAMPOS_BORRADOR) {
+      borrador[campo] = String(datos.get(campo) ?? '');
+    }
+
+    try {
+      sessionStorage.setItem(CLAVE_BORRADOR, JSON.stringify(borrador));
+    } catch (error) {
+      console.error('No se pudo guardar el borrador:', error);
+    }
+  }
+
+  function recuperarBorrador(): void {
+    const guardado = sessionStorage.getItem(CLAVE_BORRADOR);
+    if (!guardado) return;
+
+    try {
+      const datos: unknown = JSON.parse(guardado);
+      if (typeof datos !== 'object' || datos === null || Array.isArray(datos)) {
+        throw new Error('El borrador tiene un formato inválido.');
+      }
+      const valores = datos as Record<string, unknown>;
+      if (CAMPOS_BORRADOR.some(campo =>
+        typeof valores[campo] !== 'string' ||
+        (valores[campo] as string).length > 200
+      )) {
+        throw new Error('El borrador contiene valores inválidos.');
+      }
+
+      mascotaId = valores.mascotaId as string;
+      cuidadorId = valores.cuidadorId as string;
+      fechaInicio = valores.fechaInicio as string;
+      fechaFin = valores.fechaFin as string;
+      totalSinSesion = valores.totalSinSesion as string;
+    } catch (error) {
+      console.error('No se pudo recuperar el borrador:', error);
+      sessionStorage.removeItem(CLAVE_BORRADOR);
+    }
+  }
+
+  onMount(() => {
+    recuperarBorrador();
+  });
+
   // Cuando se inicia sesión cargamos las opciones reales.
   $effect(() => {
     if (sesionIniciada) {
@@ -47,7 +111,6 @@
 
   async function cargarOpciones() {
     cargandoOpciones = true;
-
     const [perfil, resultadoMascotas, resultadoCuidadores] =
       await Promise.all([
         supabase.from('usuarios').select('id').single(),
@@ -59,7 +122,6 @@
       ]);
 
     cargandoOpciones = false;
-
     if (
       perfil.error ||
       resultadoMascotas.error ||
@@ -73,11 +135,17 @@
     mascotas = resultadoMascotas.data ?? [];
     cuidadores = resultadoCuidadores.data ?? [];
 
-    if (!mascotaId && mascotas.length > 0) {
+    // Conservar la selección del borrador solo si sigue siendo válida.
+    if (
+      mascotas.length > 0 &&
+      !mascotas.some(mascota => String(mascota.id) === mascotaId)
+    ) {
       mascotaId = String(mascotas[0].id);
     }
-
-    if (!cuidadorId && cuidadores.length > 0) {
+    if (
+      cuidadores.length > 0 &&
+      !cuidadores.some(cuidador => String(cuidador.id) === cuidadorId)
+    ) {
       cuidadorId = String(cuidadores[0].id);
     }
   }
@@ -97,7 +165,6 @@
 
     return Math.round((fin - inicio) / 86400000) + 1;
   });
-
   let cuidadorElegido = $derived(
     cuidadores.find(c => c.id === Number(cuidadorId))
   );
@@ -111,7 +178,6 @@
   // Validamos antes de consultar Supabase.
   function validar(): boolean {
     const nuevos: Record<string, string> = {};
-
     if (!Number.isInteger(Number(clienteId)) ||
         Number(clienteId) <= 0) {
       nuevos.cliente = 'Debes indicar un cliente válido.';
@@ -126,7 +192,6 @@
         Number(cuidadorId) <= 0) {
       nuevos.cuidador = 'Debes seleccionar un cuidador.';
     }
-
     if (!fechaInicio) {
       nuevos.inicio = 'La fecha de inicio es obligatoria.';
     }
@@ -145,7 +210,6 @@
     if (!Number.isFinite(monto) || monto <= 0) {
       nuevos.total = 'El total debe ser mayor que cero.';
     }
-
     errores = nuevos;
 
     return Object.keys(nuevos).length === 0;
@@ -165,46 +229,62 @@
       ? totalCalculado
       : Number(totalSinSesion);
 
-    const { error } = await supabase
-      .from('solicitudes_cuidado')
-      .insert({
-        cliente_id: Number(clienteId),
-        mascota_id: Number(mascotaId),
-        cuidador_id: Number(cuidadorId),
-        fecha_inicio: fechaInicio,
-        fecha_fin: fechaFin,
-        total_pagar: monto,
-        estado: 'pendiente_pago'
-      });
+    try {
+      const { error } = await supabase
+        .from('solicitudes_cuidado')
+        .insert({
+          cliente_id: Number(clienteId),
+          mascota_id: Number(mascotaId),
+          cuidador_id: Number(cuidadorId),
+          fecha_inicio: fechaInicio,
+          fecha_fin: fechaFin,
+          total_pagar: monto,
+          estado: 'pendiente_pago'
+        });
 
-    guardando = false;
+      if (error) {
+        mensaje = sesionIniciada
+          ? 'No se pudo guardar: ' + error.message
+          : 'Supabase rechazó la creación sin sesión. ' +
+            'Inicia sesión e inténtalo nuevamente.';
+        return;
+      }
 
-    if (error) {
-      mensaje = sesionIniciada
-        ? 'No se pudo guardar: ' + error.message
-        : 'Supabase rechazó la creación sin sesión. ' +
-          'Inicia sesión e inténtalo nuevamente.';
-      return;
+      // Solo después de confirmar el INSERT quitamos el borrador.
+      sessionStorage.removeItem(CLAVE_BORRADOR);
+      mascotaId = '';
+      cuidadorId = '';
+      fechaInicio = '';
+      fechaFin = '';
+      totalSinSesion = '';
+      errores = {};
+      mensaje = 'Solicitud creada correctamente.';
+
+      // Actualizar el listado sin convertir un error de refresco
+      // en un segundo intento de creación.
+      try {
+        await alCrear();
+      } catch (errorAlActualizar) {
+        console.error('No se pudo actualizar el listado:', errorAlActualizar);
+      }
+    } catch (error) {
+      console.error('Error al crear solicitud:', error);
+      mensaje = 'Error de conexión. Se conservó el borrador.';
+    } finally {
+      guardando = false;
     }
-
-    mensaje = 'Solicitud creada correctamente.';
-    errores = {};
-
-    await alCrear();
   }
 </script>
 
 <section aria-labelledby="titulo-nuevo">
   <h2 id="titulo-nuevo">Nueva solicitud de cuidado</h2>
-
   <p>
     {sesionIniciada
       ? 'Completa los datos para crear una solicitud.'
       : 'Prueba de creación sin sesión.'}
   </p>
 
-  <form onsubmit={crearSolicitud} novalidate>
-
+  <form onsubmit={crearSolicitud} oninput={guardarBorrador} onchange={guardarBorrador} novalidate>
     <label for="cliente">ID del cliente</label>
     <input
       id="cliente"
@@ -217,10 +297,9 @@
     {#if errores.cliente}
       <p class="mensaje-error" role="alert">{errores.cliente}</p>
     {/if}
-
     <label for="mascota">Mascota</label>
     {#if sesionIniciada}
-      <select id="mascota" bind:value={mascotaId}>
+      <select id="mascota" name="mascotaId" bind:value={mascotaId}>
         <option value="">Selecciona una mascota</option>
         {#each mascotas as mascota}
           <option value={String(mascota.id)}>
@@ -231,6 +310,7 @@
     {:else}
       <input
         id="mascota"
+        name="mascotaId"
         type="text"
         inputmode="numeric"
         bind:value={mascotaId}
@@ -240,10 +320,9 @@
     {#if errores.mascota}
       <p class="mensaje-error" role="alert">{errores.mascota}</p>
     {/if}
-
     <label for="cuidador">Cuidador</label>
     {#if sesionIniciada}
-      <select id="cuidador" bind:value={cuidadorId}>
+      <select id="cuidador" name="cuidadorId" bind:value={cuidadorId}>
         <option value="">Selecciona un cuidador</option>
         {#each cuidadores as cuidador}
           <option value={String(cuidador.id)}>
@@ -255,6 +334,7 @@
     {:else}
       <input
         id="cuidador"
+        name="cuidadorId"
         type="text"
         inputmode="numeric"
         bind:value={cuidadorId}
@@ -264,10 +344,10 @@
     {#if errores.cuidador}
       <p class="mensaje-error" role="alert">{errores.cuidador}</p>
     {/if}
-
     <label for="inicio">Fecha de inicio</label>
     <input
       id="inicio"
+      name="fechaInicio"
       type="date"
       bind:value={fechaInicio}
     />
@@ -278,13 +358,13 @@
     <label for="fin">Fecha de finalización</label>
     <input
       id="fin"
+      name="fechaFin"
       type="date"
       bind:value={fechaFin}
     />
     {#if errores.fin}
       <p class="mensaje-error" role="alert">{errores.fin}</p>
     {/if}
-
     <label for="total">Total a pagar (USD)</label>
     {#if sesionIniciada}
       <input
@@ -297,6 +377,7 @@
     {:else}
       <input
         id="total"
+        name="totalSinSesion"
         type="text"
         inputmode="decimal"
         bind:value={totalSinSesion}
@@ -306,7 +387,6 @@
     {#if errores.total}
       <p class="mensaje-error" role="alert">{errores.total}</p>
     {/if}
-
     <button
       type="submit"
       disabled={guardando || (sesionIniciada && cargandoOpciones)}
@@ -319,3 +399,4 @@
     <p role="status">{mensaje}</p>
   {/if}
 </section>
+
