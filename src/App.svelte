@@ -295,38 +295,66 @@
     detalle = data as DetalleSolicitud;
   }
 
-  // FASE 1 - Cambiar estado mediante Supabase.
-  // Primero se actualiza la base de datos y luego la pantalla.
-  async function cancelarSolicitud(id: number) {
+  // FASE 5: cuando la petición no modifica filas, averiguamos si el
+  // estado en Supabase cambió desde que esta pantalla cargó los datos.
+  async function revisarCopiaVieja(
+    id: number,
+    estadoQueVioUsuario: EstadoSolicitud
+  ): Promise<string> {
+    const { data: actual, error } = await supabase
+      .from('solicitudes_cuidado')
+      .select('id, estado')
+      .eq('id', id)
+      .maybeSingle();
 
-    // Evita solicitudes simultáneas.
-    if (guardandoEstado !== null) {
-      return;
+    if (error) {
+      console.error('No se pudo comprobar el estado actual:', error);
+      return 'No se actualizó la solicitud y no fue posible consultar su estado actual. Revisa tu conexión y los permisos.';
     }
 
+    if (!actual) {
+      return 'La solicitud no se actualizó. No se encontró el registro o no tienes permiso para verlo.';
+    }
+
+    const estadoActual = actual.estado as EstadoSolicitud;
+
+    if (estadoActual !== estadoQueVioUsuario) {
+      // La fuente cambió. Actualizamos la copia de esta pantalla, sin
+      // intentar sobrescribir la decisión de la otra persona.
+      solicitudes = solicitudes.map(s =>
+        s.id === id ? { ...s, estado: estadoActual } : s
+      );
+
+      if (detalle?.id === id) {
+        detalle = { ...detalle, estado: estadoActual };
+      }
+
+      return `La solicitud #${id} fue modificada por otra persona. ` +
+        `Su estado actual es «${nombresEstado[estadoActual]}». ` +
+        'Se actualizó tu pantalla sin sobrescribir el cambio.';
+    }
+
+    // Si el estado sigue igual, el PATCH pudo ser rechazado por RLS.
+    return 'La solicitud no cambió. El estado sigue igual en Supabase, ' +
+      'pero la actualización no fue permitida. Revisa los permisos.';
+  }
+
+  // FASE 1 + 5: primero cambia Supabase, luego la copia local.
+  // El PATCH lleva el estado que vio esta persona, para impedir que
+  // una pantalla desactualizada sobrescriba el cambio de otra.
+  async function cancelarSolicitud(id: number): Promise<void> {
+    if (guardandoEstado !== null) return;
     mensaje = '';
 
-    // Buscar la solicitud en el listado actual.
     const solicitud = solicitudes.find(s => s.id === id);
-
     if (!solicitud) {
       mensaje = 'No se encontró la solicitud seleccionada.';
       return;
     }
 
-    // Verificar que el cambio de estado sea permitido.
-    if (solicitud.estado !== 'pendiente_pago') {
-      mensaje =
-        'Solo se pueden cancelar solicitudes pendientes de pago.';
-      return;
-    }
-
-    // Comprobar que existe una sesión autenticada.
-    const { data, error } = await supabase.auth.getSession();
-
-    if (error || !data.session) {
-      mensaje =
-        'Debe iniciar sesión para cambiar el estado de la solicitud.';
+    const estadoObservado = solicitud.estado;
+    if (estadoObservado !== 'pendiente_pago') {
+      mensaje = 'Solo se pueden cancelar solicitudes pendientes de pago.';
       return;
     }
 
@@ -334,64 +362,60 @@
     mensaje = 'Guardando cambio en Supabase...';
 
     try {
-      // Enviar PATCH a Supabase.
-      const resultado = await cambiarEstadoSolicitud(
-        id,
-        'cancelada',
-        data.session.access_token
-      );
-
-      // Comprobar el código HTTP.
-      if (resultado.codigo !== 200) {
-        mensaje =
-          'Error: Supabase no actualizó la solicitud. Código HTTP: ' +
-          resultado.codigo;
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data.session) {
+        mensaje = 'Debe iniciar sesión para cambiar el estado de la solicitud.';
         return;
       }
 
-      // Un 200 no garantiza que se haya modificado una fila.
-      if (resultado.filas.length !== 1) {
-        mensaje =
-          'Error: la solicitud no cambió. ' +
-          'No se actualizó ningún registro. ' +
-          'Revise sus permisos.';
+      // El filtro estado=eq.pendiente_pago se aplica en la BD junto con id.
+      // Si otra persona ya cambió el estado, la respuesta será 200 con [].
+      const resultado = await cambiarEstadoSolicitud(
+        id,
+        'cancelada',
+        estadoObservado,
+        data.session.access_token
+      );
+
+      if (resultado.codigo !== 200) {
+        mensaje = 'Error: Supabase no actualizó la solicitud. ' +
+          `Código HTTP: ${resultado.codigo}.`;
+        return;
+      }
+
+      if (resultado.filas.length === 0) {
+        // Puede ser copia vieja o RLS: jamás presentar 200 [] como éxito.
+        mensaje = await revisarCopiaVieja(id, estadoObservado);
+        return;
+      }
+
+      if (resultado.filas.length !== 1 || resultado.filas[0].id !== id) {
+        mensaje = 'Supabase devolvió una respuesta inesperada. ' +
+          'Actualiza el listado y verifica el resultado.';
         return;
       }
 
       const estadoConfirmado = resultado.filas[0].estado;
-
-      // Actualizar la copia local solo después
-      // de recibir la confirmación de Supabase.
       solicitudes = solicitudes.map(s =>
-        s.id === id
-          ? { ...s, estado: estadoConfirmado }
-          : s
+        s.id === id ? { ...s, estado: estadoConfirmado } : s
       );
 
-      // Actualizar el detalle si está abierto.
       if (detalle?.id === id) {
-        detalle = {
-          ...detalle,
-          estado: estadoConfirmado
-        };
+        detalle = { ...detalle, estado: estadoConfirmado };
       }
 
-      mensaje =
-        'La solicitud #' + id +
-        ' cambió correctamente a ' +
-        nombresEstado[estadoConfirmado] + '.';
+      mensaje = `La solicitud #${id} cambió correctamente a ` +
+        `${nombresEstado[estadoConfirmado]}.`;
 
     } catch (error) {
       console.error(error);
-
-      mensaje =
-        'Error de conexión con Supabase. ' +
-        'La solicitud no se actualizó en pantalla.';
-
+      mensaje = 'Error de conexión con Supabase. No se actualizó ' +
+        'la solicitud en pantalla; verifica el estado antes de reintentar.';
     } finally {
       guardandoEstado = null;
     }
   }
+
 </script>
 
 <header>

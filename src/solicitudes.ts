@@ -1,8 +1,8 @@
 
 import type { EstadoSolicitud } from './tipos';
 
-const URL_BASE = import.meta.env.VITE_SUPABASE_URL;
-const CLAVE_PUBLICA = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const URL_BASE: string = import.meta.env.VITE_SUPABASE_URL;
+const CLAVE_PUBLICA: string = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 interface FilaActualizada {
   id: number;
@@ -14,13 +14,22 @@ export interface ResultadoCambio {
   filas: FilaActualizada[];
 }
 
+// Fase 5: el estadoEsperado se valida en la propia sentencia UPDATE
+// realizada por PostgREST, no con una consulta previa separada.
 export async function cambiarEstadoSolicitud(
   id: number,
   nuevo: EstadoSolicitud,
+  estadoEsperado: EstadoSolicitud,
   token: string
 ): Promise<ResultadoCambio> {
+  const parametros = new URLSearchParams({
+    id: `eq.${id}`,
+    estado: `eq.${estadoEsperado}`,
+    select: 'id,estado'
+  });
+
   const respuesta = await fetch(
-    `${URL_BASE}/rest/v1/solicitudes_cuidado?id=eq.${id}`,
+    `${URL_BASE}/rest/v1/solicitudes_cuidado?${parametros.toString()}`,
     {
       method: 'PATCH',
       headers: {
