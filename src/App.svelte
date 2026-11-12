@@ -1,5 +1,4 @@
 
-
 <script lang="ts">
   import { onMount } from 'svelte';
   import { supabase } from './lib/supabase';
@@ -44,9 +43,52 @@
     cancelada: 'Cancelada'
   };
 
+  // FASE 3: guardar solo la preferencia de filtro, no las solicitudes.
+  type FiltroEstado = EstadoSolicitud | 'todos';
+  const CLAVE_FILTRO = 'patafiel.filtroEstado';
+  const ESTADOS_SOLICITUD: EstadoSolicitud[] = [
+    'pendiente_pago',
+    'pago_por_verificar',
+    'confirmada',
+    'en_progreso',
+    'completada',
+    'cancelada'
+  ];
+
+  let filtroEstado = $state<FiltroEstado>('todos');
+  let solicitudesFiltradas = $derived(
+    filtroEstado === 'todos'
+      ? solicitudes
+      : solicitudes.filter(solicitud => solicitud.estado === filtroEstado)
+  );
+
+  function leerFiltro(): FiltroEstado {
+    try {
+      const valor = localStorage.getItem(CLAVE_FILTRO);
+      if (valor === 'todos' ||
+          (valor !== null && ESTADOS_SOLICITUD.includes(valor as EstadoSolicitud))) {
+        return valor as FiltroEstado;
+      }
+      // Una preferencia manipulada o desconocida no debe romper la página.
+      localStorage.removeItem(CLAVE_FILTRO);
+    } catch (error) {
+      console.warn('No se pudo recuperar el filtro:', error);
+    }
+    return 'todos';
+  }
+
+  function guardarFiltro(): void {
+    try {
+      localStorage.setItem(CLAVE_FILTRO, filtroEstado);
+    } catch (error) {
+      console.warn('No se pudo guardar el filtro:', error);
+    }
+  }
+
   // FASE 2: Supabase Auth conserva la sesión en el navegador.
   // Al abrir Patafiel comprobamos que la sesión sigue siendo válida.
   onMount(() => {
+    filtroEstado = leerFiltro();
     void comprobarSesion();
   });
 
@@ -397,6 +439,20 @@
       Actualizar solicitudes
     </button>
 
+    <div class="filtro-solicitudes">
+      <label for="filtro-estado">Filtrar solicitudes por estado</label>
+      <select
+        id="filtro-estado"
+        bind:value={filtroEstado}
+        onchange={guardarFiltro}
+      >
+        <option value="todos">Todos</option>
+        {#each ESTADOS_SOLICITUD as estado}
+          <option value={estado}>{nombresEstado[estado]}</option>
+        {/each}
+      </select>
+    </div>
+
     {#if cargando}
       <p>Cargando solicitudes...</p>
 
@@ -417,7 +473,7 @@
           </thead>
 
           <tbody>
-            {#each solicitudes as solicitud (solicitud.id)}
+            {#each solicitudesFiltradas as solicitud (solicitud.id)}
               <tr>
                 <td>{solicitud.id}</td>
 
@@ -460,7 +516,11 @@
             {:else}
               <tr>
                 <td colspan="6">
-                  No hay solicitudes disponibles.
+                  {#if solicitudes.length === 0}
+                    No hay solicitudes disponibles.
+                  {:else}
+                    Ninguna solicitud coincide con el filtro seleccionado.
+                  {/if}
                 </td>
               </tr>
             {/each}
